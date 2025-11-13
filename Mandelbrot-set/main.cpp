@@ -1,56 +1,67 @@
 #include <iostream>
 #include "SFML/Graphics.hpp"
 
-bool isFinite(double r, double i);
+static constexpr size_t iter = 1'000;
+
+size_t diverges(double r, double i);
 
 int main() {
-	sf::Vector2i imgSize(200, 200);
-	sf::Vector2<double> viewSize(2, 2);
-	if (imgSize.x / double(imgSize.y) != viewSize.x / viewSize.y)
-		return 1;
+	unsigned int xSize = 15'000;
+	double ratio = 0.882;
+	double xView = 3;
 
-	sf::Image img;
-	img.create(imgSize.x, imgSize.y, sf::Color::Black);
+	sf::Vector2u imgSize(xSize, unsigned int(xSize * ratio));
+	sf::Image img(imgSize, sf::Color::Black);
 
-	for (int x = 0; x < imgSize.x; x++) {
-		for (int y = 0; y < imgSize.y / 2.f; y++) {
-			double r = (x - imgSize.x / 2.f) * viewSize.x / imgSize.x - 0.5;
-			double i = (y - imgSize.y / 2.f) * viewSize.y / imgSize.y;
+	for (unsigned int x = 0; x < imgSize.x; x++) {
+		for (unsigned int y = 0; y < imgSize.y / 2.f; y++) {
+			double r = (int(x) - imgSize.x / 2.f) * xView / imgSize.x - 0.5;
+			double i = (int(y) - imgSize.y / 2.f) * xView / imgSize.x;
 
 			sf::Color c;
-			if (isFinite(r, i))
-				c = sf::Color::White;
+			auto n = diverges(r, i);
+			auto s = std::pow(n / double(iter), 0.4);
+			if (n == size_t(-1))
+				c = sf::Color::Red;
+			else if (n < iter)
+				c = sf::Color(0, 255 * s, 255 * s);
 			else
-				c = sf::Color::Black;
+				c = sf::Color::White;
 
-			img.setPixel(x, y, c);
-			img.setPixel(x, imgSize.y - y - 1, c);
+			img.setPixel({ x, y }, c);
+			img.setPixel({ x, imgSize.y - y - 1 }, c);
 		}
-		std::cout << x + 1 << "/" << imgSize.x << " columns\n";
+
+		if ((x + 1) % 100 == 0)
+			std::cout << 100.f * (x + 1) / imgSize.x << "%\n";
 	}
 
-	img.saveToFile("image.png");
+	auto _ = img.saveToFile("image.png");
 
 	return 0; 
 }
 
-bool isFinite(const double r, const double i) {
-	std::vector<std::pair<double, double>> found;
-	found.push_back(std::pair<double, double>(0, 0));
-	found.push_back(std::pair<double, double>(r, i));
+size_t diverges(double r, double i) {
+	auto mod = [](double r, double i) {
+		return sqrt(r * r + i * i);
+		};
+
+	if (mod(r, i) < 0.005)
+		return size_t(-1);
+	if (mod(r, i) > 2)
+		return 0;
 
 	double newR = r, newI = i;
-	for (int a = 0; a < 10000; a++) {
+	for (size_t a = 0; a < iter;) {
+		a++;
+
 		double tempR = newR * newR - newI * newI + r;
 		double tempI = 2 * newR * newI + i;
 		newR = tempR, newI = tempI;
 
-		for (const auto& f : found) {
-			if (f.first == newR && f.second == newI)
-				return true;
-		}
-		found.push_back(std::pair<double, double>(newR, newI));
+		if (mod(newR, newI) > 2)
+			return a;
 	}
 
-	return false;
+	return iter;
 }

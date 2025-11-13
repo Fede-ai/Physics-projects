@@ -2,14 +2,12 @@
 #include "pendulum.hpp"
 
 int main() {
-
 	Pendulum pendulum;
-
-	const float width = sf::VideoMode::getFullscreenModes()[0].width * 2 / 3.f;
+	const float width = sf::VideoMode::getFullscreenModes()[0].size.x * 2 / 3.f;
 	sf::Vector2f wSize(width, width * 9.f / 16.f);
 
 	sf::ContextSettings settings;
-	settings.antialiasingLevel = 8;
+	settings.antiAliasingLevel = 8;
 
 	sf::RenderWindow w(sf::VideoMode(int(wSize.x), int(wSize.y)), "Pendulum", sf::Style::Default, settings);
 	w.setView(sf::View({ wSize.x / 2.f, wSize.y / 2.f }, { wSize.x, wSize.y }));
@@ -123,12 +121,12 @@ int main() {
 		body.setRotation(float(ang * 180));
 		w.draw(body);
 		
-		pivot.setPosition(xPos, w.getSize().y / 2.f);
+		pivot.setPosition({ xPos, w.getSize().y / 2.f });
 		w.draw(pivot);
 
 		mass.setPosition(pivot.getPosition());
-		mass.move(body.getSize().x * float(cos(ang * Pendulum::pi)), 
-			body.getSize().x * float(sin(ang * Pendulum::pi)));
+		mass.move({ body.getSize().x * float(cos(ang * Pendulum::pi)),
+			body.getSize().x * float(sin(ang * Pendulum::pi)) });
 		w.draw(mass);
 
 		float arrowLeng = float(pendulum.pendulum.y * 50);
@@ -155,7 +153,7 @@ int main() {
 		while (uStr[uStr.size() - 1] == '0')
 			uStr.resize(uStr.size() - 1);
 		eq.setString("u = " + uStr + "\nA''(t) = -u * A'(t) - (g / L) * sin(A(t))");
-		eq.setPosition(15, float(w.getSize().y - 75));
+		eq.setPosition({ 15, float(w.getSize().y - 75) });
 		w.draw(eq);
 
 		w.display();
