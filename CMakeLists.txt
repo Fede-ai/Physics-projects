@@ -10,10 +10,7 @@ set_directory_properties(PROPERTIES VS_SOLUTION_ITEMS "CMakeLists.txt;LICENSE.md
 source_group("Documentation" FILES CMakeLists.txt LICENSE.md README.md .gitignore)
 
 add_subdirectory(Diff-eq)
-add_subdirectory(Elastic-collision)
-add_subdirectory(Laser-simulation)
+add_subdirectory(FFT)
 add_subdirectory(Mandelbrot-set)
-add_subdirectory(Physics-exercise)
-add_subdirectory(Triple-pendulum)
 
 set(PATH_SFML "C:/SFML-3.0.0" CACHE STRING "Path to the SFML library")

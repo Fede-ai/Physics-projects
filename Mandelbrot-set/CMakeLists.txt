@@ -4,6 +4,10 @@ set(SOURCE
 
 add_executable(Mandelbrot-set ${SOURCE})
 
+if (MSVC)
+    target_compile_options(Mandelbrot-set PRIVATE /openmp:llvm)
+endif()
+
 target_include_directories(Mandelbrot-set PRIVATE ${PATH_SFML}/include)
 target_link_directories(Mandelbrot-set PRIVATE ${PATH_SFML}/lib)
 target_link_libraries(Mandelbrot-set PRIVATE

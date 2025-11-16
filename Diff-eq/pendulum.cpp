@@ -3,7 +3,7 @@
 
 Pendulum::Pendulum()
 {
-	const float width = sf::VideoMode::getFullscreenModes()[0].width * 2 / 3.f;
+	const float width = sf::VideoMode::getFullscreenModes()[0].size.x * 2 / 3.f;
 	defaultSize.y = width * 9 / 16.f;
 	defaultSize.x = width - defaultSize.y * 0.8f;
 
@@ -37,7 +37,7 @@ sf::Image Pendulum::renderGraph(int width, int height)
 		int yPos = int(y - anchor.y * zoom + img.getSize().y / 2.f);
 		if (xPos >= 0 && xPos < int(img.getSize().x) &&
 			yPos >= 0 && yPos < int(img.getSize().y))
-			img.setPixel(xPos, yPos, c);
+			img.setPixel(sf::Vector2u(xPos, yPos), c);
 		};
 
 	//draw the trail
@@ -90,7 +90,7 @@ void Pendulum::moveGraph()
 {
 	sf::Vector2i mousePos = sf::Mouse::getPosition();
 
-	if (sf::Mouse::isButtonPressed(sf::Mouse::Left) && 
+	if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && 
 		isMovingGraph && mousePos != lastMousePos) {
 		anchor.x += (lastMousePos.x - mousePos.x) / zoom;
 		anchor.y += (lastMousePos.y - mousePos.y) / zoom;
@@ -125,9 +125,7 @@ void Pendulum::forceRerender()
 
 sf::Image Pendulum::renderAxes(int width, int height) const
 {
-	sf::Image img;
-	img.create(width, height, sf::Color(50, 50, 50));
-
+	sf::Image img(sf::Vector2u(width, height), sf::Color(50, 50, 50));
 	int left = int(anchor.x * zoom - width / 2.f);
 	int top = int(anchor.y * zoom - height / 2.f);
 
@@ -137,7 +135,7 @@ sf::Image Pendulum::renderAxes(int width, int height) const
 		int yPos = int(y - anchor.y * zoom + img.getSize().y / 2.f);
 		if (xPos >= 0 && xPos < int(img.getSize().x) && 
 			yPos >= 0 && yPos < int(img.getSize().y))
-			img.setPixel(xPos, yPos, c);
+			img.setPixel(sf::Vector2u(xPos, yPos), c);
 		};
 
 	//draw vertical axes
