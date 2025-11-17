@@ -1,20 +1,20 @@
 set(SOURCE
 	main.cpp
-	pendulum.hpp
-	pendulum.cpp
+	transform.hpp
+	transform.cpp
 )
 
-add_executable(Diff-eq ${SOURCE})
+add_executable(Fourier-transform ${SOURCE})
 
-target_include_directories(Diff-eq PRIVATE ${PATH_SFML}/include)
-target_link_directories(Diff-eq PRIVATE ${PATH_SFML}/lib)
-target_link_libraries(Diff-eq PRIVATE
+target_include_directories(Fourier-transform PRIVATE ${PATH_SFML}/include)
+target_link_directories(Fourier-transform PRIVATE ${PATH_SFML}/lib)
+target_link_libraries(Fourier-transform PRIVATE
 	$<$<CONFIG:Release>:sfml-system.lib sfml-graphics.lib sfml-window.lib>
 	$<$<CONFIG:Debug>:sfml-system-d.lib sfml-graphics-d.lib sfml-window-d.lib>
 )
 
 # copy necessary dll files
-add_custom_command(TARGET Diff-eq POST_BUILD
+add_custom_command(TARGET Fourier-transform POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different        	
 	$<$<CONFIG:Release>:${PATH_SFML}/bin/sfml-system-3.dll>
 	$<$<CONFIG:Debug>:${PATH_SFML}/bin/sfml-system-d-3.dll>
@@ -22,11 +22,5 @@ add_custom_command(TARGET Diff-eq POST_BUILD
 	$<$<CONFIG:Debug>:${PATH_SFML}/bin/sfml-graphics-d-3.dll>
 	$<$<CONFIG:Release>:${PATH_SFML}/bin/sfml-window-3.dll>
 	$<$<CONFIG:Debug>:${PATH_SFML}/bin/sfml-window-d-3.dll>
-	$<TARGET_FILE_DIR:Diff-eq>
-)
-
-add_custom_command(TARGET Diff-eq POST_BUILD
-	COMMAND ${CMAKE_COMMAND} -E copy_if_different        	
-	"${CMAKE_CURRENT_SOURCE_DIR}/font.ttf"
-	"$<TARGET_FILE_DIR:Diff-eq>/../font.ttf"
+	$<TARGET_FILE_DIR:Fourier-transform>
 )
