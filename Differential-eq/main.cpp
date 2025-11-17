@@ -42,8 +42,7 @@ int main() {
 			if (event->is<sf::Event::Closed>())
 				w.close();
 			else if (const auto* wheel = event->getIf<sf::Event::MouseWheelScrolled>()) {
-				if (wheel->position.x > w.getSize().y * 0.8)
-					pendulum.applyZoom(wheel->delta);
+				pendulum.applyZoom(wheel->delta);
 			}
 			else if (event->is<sf::Event::Resized>()) {
 				wSize = sf::Vector2f(w.getSize());
@@ -70,13 +69,11 @@ int main() {
 			}
 			//start moving graph
 			else if (const auto* button = event->getIf<sf::Event::MouseButtonPressed>()) {
-				if (button->position.x > w.getSize().y * 0.8) {
-					if (button->button == sf::Mouse::Button::Left)
-						pendulum.isMovingGraph = true;
-					else if (button->button == sf::Mouse::Button::Right)
-						pendulum.setPendulum(button->position.x - int(w.getSize().y * 0.8), button->position.y,
-							int(w.getSize().x - w.getSize().y * 0.8), w.getSize().y);
-				}
+				if (button->button == sf::Mouse::Button::Left)
+					pendulum.isMovingGraph = true;
+				else if (button->button == sf::Mouse::Button::Right && button->position.x > w.getSize().y * 0.8)
+					pendulum.setPendulum(button->position.x - int(w.getSize().y * 0.8), button->position.y,
+						int(w.getSize().x - w.getSize().y * 0.8), w.getSize().y);
 			}
 			//stop moving graph
 			else if (const auto* button = event->getIf<sf::Event::MouseButtonReleased>()) {

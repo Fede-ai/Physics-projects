@@ -5,16 +5,25 @@
 
 #define PI 3.141592653589793238462643383279502884L
 
-typedef std::vector<std::complex<double>> List;
+typedef std::complex<double> Point;
+typedef struct {
+	int m;
+	double magnitude;
+	double phase;
+} Freq;
 
 class Transform {
 public:
 	Transform() = default;
-	void performDFT(const List& x);
-	List performIDFT();
 
-	List spectrum_;
+	std::vector<Point> smoothenPoints(const std::vector<Point>& x) const;
+	void performDFT(const std::vector<Point>& x);
+	void orderSpectrum();
+
+	std::vector<Point> spectrum_;
+	std::vector<Freq> orderedSpectrum_;
 
 private:
+	std::vector<Point> performIDFT();
 	
 };
