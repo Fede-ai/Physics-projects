@@ -41,9 +41,8 @@ int main() {
 		while (const std::optional event = w.pollEvent()) {
 			if (event->is<sf::Event::Closed>())
 				w.close();
-			else if (const auto* wheel = event->getIf<sf::Event::MouseWheelScrolled>()) {
+			else if (const auto* wheel = event->getIf<sf::Event::MouseWheelScrolled>())
 				pendulum.applyZoom(wheel->delta);
-			}
 			else if (event->is<sf::Event::Resized>()) {
 				wSize = sf::Vector2f(w.getSize());
 				w.setView(sf::View({ wSize.x / 2.f, wSize.y / 2.f }, { wSize.x, wSize.y }));

@@ -14,16 +14,15 @@ typedef struct {
 
 class Transform {
 public:
-	Transform() = default;
+	Transform(const std::vector<Point>& x);
 
-	std::vector<Point> smoothenPoints(const std::vector<Point>& x) const;
-	void performDFT(const std::vector<Point>& x);
-	void orderSpectrum();
+	static std::vector<Point> smoothenPoints(const std::vector<Point>& x);
 
 	std::vector<Point> spectrum_;
 	std::vector<Freq> orderedSpectrum_;
 
 private:
+	void orderSpectrum();
 	std::vector<Point> performIDFT();
 	
 };

@@ -1,7 +1,32 @@
 #include "transform.hpp"
 #include <algorithm>
 
-std::vector<Point> Transform::smoothenPoints(const std::vector<Point>& raw) const
+Transform::Transform(const std::vector<Point>& x)
+{
+    if (x.size() == 0)
+		return;
+
+    const size_t N = x.size();
+    spectrum_ = std::vector<Point>(N);
+
+    const double twoPiOverN = 2.0 * PI / N;
+
+    for (size_t k = 0; k < N; k++) {
+        std::complex<double> sum(0.0, 0.0);
+
+        for (size_t n = 0; n < N; n++) {
+            double angle = -twoPiOverN * double(n * k);
+            std::complex<double> w(std::cos(angle), std::sin(angle));
+            sum += x[n] * w;
+        }
+
+        spectrum_[k] = sum;
+    }
+
+    orderSpectrum();
+}
+
+std::vector<Point> Transform::smoothenPoints(const std::vector<Point>& raw)
 {
 	std::vector<Point> x = raw;
 	x.push_back(x[0]);
@@ -29,26 +54,6 @@ std::vector<Point> Transform::smoothenPoints(const std::vector<Point>& raw) cons
     }
 
     return uniform;
-}
-
-void Transform::performDFT(const std::vector<Point>& x)
-{
-    const size_t N = x.size();
-    spectrum_ = std::vector<Point>(N);
-
-    const double twoPiOverN = 2.0 * PI / N;
-
-    for (size_t k = 0; k < N; k++) {
-        std::complex<double> sum(0.0, 0.0);
-
-        for (size_t n = 0; n < N; n++) {
-            double angle = -twoPiOverN * double(n * k);
-            std::complex<double> w(std::cos(angle), std::sin(angle));
-            sum += x[n] * w;
-        }
-
-        spectrum_[k] = sum;
-    }
 }
 
 void Transform::orderSpectrum()

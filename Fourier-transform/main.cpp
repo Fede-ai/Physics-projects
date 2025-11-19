@@ -17,14 +17,15 @@ int main()
 	sf::Vector2f lastMousePos;
 	bool isMoving = false, isRunning = false;
 	bool isDrawing = false;
-	float zoom = 1.0;
+	float zoom = 1.0, threshold = 0.1f;
+	size_t numFrequencies = 0;
 	size_t drawingFrame = size_t(-1);
 
-	std::vector<Point> points;
+	std::vector<std::vector<Point>> points;
 	std::vector<Point> uniform;
-	Transform ft;
+	Transform* ft = new Transform({});
 
-	sf::VertexArray line(sf::PrimitiveType::LineStrip);
+	std::vector<sf::VertexArray> lines;
 	sf::VertexArray traced(sf::PrimitiveType::LineStrip);
 	
 	sf::Font font("font.ttf");
@@ -35,8 +36,12 @@ int main()
 				w.close();
 			else if (const auto* button = event->getIf<sf::Event::MouseButtonPressed>()) {
 				if (button->button == sf::Mouse::Button::Left) {
-					if (points.empty())
+					if (drawingFrame == size_t(-1)) {
+						lines.push_back(sf::VertexArray(sf::PrimitiveType::LineStrip));
+						points.push_back({});
+
 						isDrawing = true;
+					}
 					else
 						isMoving = true;
 					lastMousePos = w.mapPixelToCoords(button->position);
@@ -44,15 +49,9 @@ int main()
 			}
 			else if (const auto* button = event->getIf<sf::Event::MouseButtonReleased>()) {
 				if (button->button == sf::Mouse::Button::Left) {
-					if (isDrawing && !points.empty()) {
-						isRunning = true;
-
-						uniform = ft.smoothenPoints(points);
-						ft.performDFT(uniform);
-						for (int i = 0; i < ft.spectrum_.size(); i++)
-							std::cout << "f " << i << " -> mag: " << std::abs(ft.spectrum_[i]) / ft.spectrum_.size() << "\tphase: " << std::arg(ft.spectrum_[i]) << "\n";
-
-						ft.orderSpectrum();
+					if (isDrawing && points[points.size() - 1].size() < 25) {
+						lines.pop_back();
+						points.pop_back();
 					}
 					isDrawing = false, isMoving = false;
 				}
@@ -60,8 +59,8 @@ int main()
 			else if (const auto* mouse = event->getIf<sf::Event::MouseMoved>()) {
 				if (isDrawing) {
 					auto p = w.mapPixelToCoords(mouse->position);
-					points.push_back(std::complex<double>(p.x, p.y));
-					line.append(sf::Vertex(p, sf::Color::White));
+					points[points.size() - 1].push_back({ p.x, p.y });
+					lines[lines.size() - 1].append(sf::Vertex(p, sf::Color::White));
 				}
 				else if (isMoving) {
 					sf::View v = w.getView();
@@ -73,9 +72,34 @@ int main()
 			}
 			else if (const auto* mouse = event->getIf<sf::Event::MouseWheelScrolled>())
 				zoom /= ((mouse->delta > 0) ? 0.85f : 1.15f);
-			else if (const auto* key = event->getIf<sf::Event::KeyPressed>())
-				if (key->code == sf::Keyboard::Key::Space && !isDrawing && !points.empty())
-					isRunning = !isRunning;
+			else if (const auto* key = event->getIf<sf::Event::KeyPressed>()) {
+				if (key->code == sf::Keyboard::Key::Space) {
+					if (drawingFrame == size_t(-1) && !isDrawing && !points.empty()) {
+						isRunning = true;
+
+						std::vector<Point> continuous;
+						for (auto& p : points) {
+							for (auto& pt : p)
+								continuous.push_back(pt);
+						}
+
+						uniform = Transform::smoothenPoints(continuous);
+						ft = new Transform(uniform);
+						for (int i = 0; i < ft->spectrum_.size(); i++)
+							std::cout << "f " << i << " -> mag: " << std::abs(ft->spectrum_[i]) / ft->spectrum_.size()
+							<< "\tphase: " << std::arg(ft->spectrum_[i]) << "\n";
+
+						for (size_t i = 0; i < ft->orderedSpectrum_.size(); i++) {
+							if (ft->orderedSpectrum_[i].magnitude < threshold)
+								continue;
+							numFrequencies++;
+						}
+						std::cout << "frequencies with magnitude > " << threshold << ": " << numFrequencies << "\n";
+					}
+					else if (drawingFrame != size_t(-1))
+						isRunning = !isRunning;
+				}
+			}
 		}
 
 		wSize = sf::Vector2f(w.getSize());
@@ -91,22 +115,27 @@ int main()
 			if (isRunning)
 				drawingFrame++;
 
-			float N = ft.spectrum_.size();
+			float N = ft->spectrum_.size();
 			float t = speed * drawingFrame / N;
 			float x = 0, y = 0;
 
-			for (const auto& f : ft.orderedSpectrum_) {
+			for (const auto& f : ft->orderedSpectrum_) {
+				if (f.magnitude < threshold)
+					continue;
+
 				float angle = 2 * PI * f.m * t + f.phase;
 				x += f.magnitude * std::cos(angle);
 				y += f.magnitude * std::sin(angle);
 
 				arms.append(sf::Vertex(sf::Vector2f(x, y), sf::Color(100, 100, 255)));
 			}
-			if (isRunning && (speed * drawingFrame <= ft.spectrum_.size()))
+
+			if (isRunning && (speed * drawingFrame <= ft->spectrum_.size()))
 				traced.append(sf::Vertex(sf::Vector2f(x, y), sf::Color::Red));
 		}
 
-		w.draw(line);
+		for (auto& line : lines)
+			w.draw(line);
 		w.draw(arms);
 		w.draw(traced);
 
@@ -119,8 +148,12 @@ int main()
 		menuBg.setFillColor(sf::Color(20, 20, 20));
 		txt.draw(menuBg);
 
-		sf::Text counter(font, "Raw points n. = " + std::to_string(points.size()) +
-			"\nFrequencies n. = " + std::to_string(ft.spectrum_.size()));
+		size_t nPoints = 0;
+		for (auto& p : points)
+			nPoints += p.size();
+
+		sf::Text counter(font, "Raw points n. = " + std::to_string(nPoints) +
+			"\nFrequencies n. = " + std::to_string(ft->spectrum_.size()));
 		counter.setPosition({ 1.3f * u, 0.4f * u });
 		counter.setCharacterSize(3.6f * u);
 		txt.draw(counter);
@@ -132,6 +165,9 @@ int main()
 
 		w.display();
 	}
+
+	if (ft != nullptr)
+		delete ft;
 
 	return 0;
 }

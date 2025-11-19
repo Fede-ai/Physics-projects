@@ -12,5 +12,6 @@ source_group("Documentation" FILES CMakeLists.txt LICENSE.md README.md .gitignor
 add_subdirectory(Differential-eq)
 add_subdirectory(Fourier-transform)
 add_subdirectory(Mandelbrot-set)
+add_subdirectory(Wind-tunnel)
 
 set(PATH_SFML "C:/SFML-3.0.0" CACHE STRING "Path to the SFML library")
