@@ -17,12 +17,11 @@ int main()
 	sf::Vector2f lastMousePos;
 	bool isMoving = false, isRunning = false;
 	bool isDrawing = false;
-	float zoom = 1.0, threshold = 0.1f;
+	float zoom = 1.0, threshold = 0.05f;
 	size_t numFrequencies = 0;
 	size_t drawingFrame = size_t(-1);
 
 	std::vector<std::vector<Point>> points;
-	std::vector<Point> uniform;
 	Transform* ft = new Transform({});
 
 	std::vector<sf::VertexArray> lines;
@@ -49,7 +48,7 @@ int main()
 			}
 			else if (const auto* button = event->getIf<sf::Event::MouseButtonReleased>()) {
 				if (button->button == sf::Mouse::Button::Left) {
-					if (isDrawing && points[points.size() - 1].size() < 25) {
+					if (isDrawing && points[points.size() - 1].size() < 20) {
 						lines.pop_back();
 						points.pop_back();
 					}
@@ -83,21 +82,35 @@ int main()
 								continuous.push_back(pt);
 						}
 
-						uniform = Transform::smoothenPoints(continuous);
+						auto uniform = Transform::smoothenPoints(continuous);
 						ft = new Transform(uniform);
 						for (int i = 0; i < ft->spectrum_.size(); i++)
 							std::cout << "f " << i << " -> mag: " << std::abs(ft->spectrum_[i]) / ft->spectrum_.size()
 							<< "\tphase: " << std::arg(ft->spectrum_[i]) << "\n";
 
+						std::cout << "raw points number: " << continuous.size() << "\n";
+						std::cout << "uniform points number: " << uniform.size() << "\n";
+
 						for (size_t i = 0; i < ft->orderedSpectrum_.size(); i++) {
-							if (ft->orderedSpectrum_[i].magnitude < threshold)
-								continue;
-							numFrequencies++;
+							if (ft->orderedSpectrum_[i].magnitude >= threshold)
+								numFrequencies++;
 						}
 						std::cout << "frequencies with magnitude > " << threshold << ": " << numFrequencies << "\n";
 					}
 					else if (drawingFrame != size_t(-1))
 						isRunning = !isRunning;
+				}
+				else if (key->code == sf::Keyboard::Key::R && !isDrawing) {
+					isRunning = false;
+					drawingFrame = size_t(-1);
+					numFrequencies = 0;
+
+					points.clear();
+					lines.clear();
+					traced.clear();
+
+					delete ft;
+					ft = new Transform({});
 				}
 			}
 		}
@@ -106,37 +119,54 @@ int main()
 		sf::View v = w.getView();
 		v.setSize(wSize / zoom);
 		w.setView(v);
-		w.clear(sf::Color(50, 50, 50));
-
+		w.clear(sf::Color(50, 50, 50));		
+		
 		//draw FT result
-		sf::VertexArray arms(sf::PrimitiveType::LineStrip);
 		const float speed = 150 / 1'000.f;
 		if (drawingFrame != size_t(-1) || isRunning) {
 			if (isRunning)
 				drawingFrame++;
 
-			float N = ft->spectrum_.size();
-			float t = speed * drawingFrame / N;
-			float x = 0, y = 0;
+			float t = speed * drawingFrame / ft->orderedSpectrum_.size();
+			const auto& anchor = ft->orderedSpectrum_[0];
+			float x = anchor.magnitude * std::cos(anchor.phase);
+			float y = anchor.magnitude * std::sin(anchor.phase);
 
 			for (const auto& f : ft->orderedSpectrum_) {
-				if (f.magnitude < threshold)
+				if (f.magnitude < threshold || f.m == 0)
 					continue;
 
+				float radius = std::pow(f.magnitude, 0.4f) / 5.f;
+				float c = std::pow(f.magnitude / ft->orderedSpectrum_[1].magnitude, 0.6);
+				sf::Color color = sf::Color(0, 255 * c, 255 * (1 - c));
+
+				sf::CircleShape circle(radius);
+				circle.setOrigin({ radius, radius });
+				circle.setPosition({ x, y });
+				circle.setFillColor(color);
+				w.draw(circle);
+
 				float angle = 2 * PI * f.m * t + f.phase;
+				sf::RectangleShape body({ float(f.magnitude), 2.f * radius });
+				body.setOrigin({ 0, radius });
+				body.setRotation(sf::radians(angle));
+				body.setPosition({ x, y });
+				body.setFillColor(color);
+				w.draw(body);
+
 				x += f.magnitude * std::cos(angle);
 				y += f.magnitude * std::sin(angle);
 
-				arms.append(sf::Vertex(sf::Vector2f(x, y), sf::Color(100, 100, 255)));
+				circle.setPosition({ x, y });
+				w.draw(circle);
 			}
 
-			if (isRunning && (speed * drawingFrame <= ft->spectrum_.size()))
+			if (isRunning && (speed * drawingFrame <= ft->orderedSpectrum_.size()))
 				traced.append(sf::Vertex(sf::Vector2f(x, y), sf::Color::Red));
 		}
 
 		for (auto& line : lines)
 			w.draw(line);
-		w.draw(arms);
 		w.draw(traced);
 
 		sf::RenderTexture txt(sf::Vector2u{ wSize });
@@ -153,7 +183,7 @@ int main()
 			nPoints += p.size();
 
 		sf::Text counter(font, "Raw points n. = " + std::to_string(nPoints) +
-			"\nFrequencies n. = " + std::to_string(ft->spectrum_.size()));
+			"\nFrequencies n. = " + std::to_string(numFrequencies));
 		counter.setPosition({ 1.3f * u, 0.4f * u });
 		counter.setCharacterSize(3.6f * u);
 		txt.draw(counter);

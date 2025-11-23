@@ -38,7 +38,7 @@ std::vector<Point> Transform::smoothenPoints(const std::vector<Point>& raw)
         arc[i] = arc[i - 1] + std::abs(x[i] - x[i - 1]);
     float total_length = arc[x.size() - 1];
 
-    int N = x.size() * 2;
+    int N = std::pow(2, std::ceil(std::log2(x.size())));
     std::vector<Point> uniform(N);
 
     int j = 0;
