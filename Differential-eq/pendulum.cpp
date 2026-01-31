@@ -7,18 +7,19 @@ Pendulum::Pendulum()
 	defaultSize.y = width * 9 / 16.f;
 	defaultSize.x = width - defaultSize.y * 0.8f;
 
-	unit.x = int(std::round(defaultSize.x / 4.5f));
-	unit.y = int(std::round(defaultSize.y / 9.f));
+	unit.x = int(std::round(defaultSize.x / 10.f));
+	unit.y = int(std::round(defaultSize.y / 10.f));
+
+	trail.push_back(pendulum);
 }
 
-void Pendulum::update()
+void Pendulum::update(int fps)
 {
-	double dt = 0.00002 / 1.5;
+	double dt = 1.0 / 1000.0 / fps;
 
 	for (int i = 0; i < 1000; i++) {
-		double ang = pendulum.x * pi;
+		pendulum.y -= (pendulum.y * drag / 1000.f + 9.806 * sin(pendulum.x) / length) * dt;
 		pendulum.x += pendulum.y * dt;
-		pendulum.y -= dt * (pendulum.y * drag / 1000.f + 9.806 * sin(ang) / length);
 	}
 
 	trail.push_back(pendulum);
@@ -43,8 +44,8 @@ sf::Image Pendulum::renderGraph(int width, int height)
 	//draw the trail
 	if (trail.size() > 1) {
 		for (int i = 0; i < trail.size() - 1; i++) {
-			double x1 = trail[i].x * unit.x * zoom, x2 = trail[i + 1].x * unit.x * zoom;
-			double y1 = -trail[i].y * unit.y * zoom, y2 = -trail[i + 1].y * unit.y * zoom;
+			double x1 = trail[i].x * unit.x * zoom / pi * 2, x2 = trail[i + 1].x * unit.x * zoom / pi * 2;
+			double y1 = -trail[i].y * unit.y * zoom / pi * 2, y2 = -trail[i + 1].y * unit.y * zoom / pi * 2;
 
 			//dont render if both points are outside
 			int x1p = int(x1 - anchor.x * zoom), y1p = int(y1 - anchor.y * zoom);
@@ -74,8 +75,8 @@ sf::Image Pendulum::renderGraph(int width, int height)
 
 	//draw the ball
 	int radius = 8;
-	int xPen = int(std::round(pendulum.x * unit.x * zoom));
-	int yPen = -int(std::round(pendulum.y * unit.y * zoom));
+	int xPen = int(std::round(pendulum.x * unit.x * zoom / (pi / 2)));
+	int yPen = -int(std::round(pendulum.y * unit.y * zoom / (pi / 2)));
 	for (int x = -radius; x < radius + 1; x++) {
 		for (int y = -radius; y < radius + 1; y++) {
 			if (sqrt(x * x + y * y) < radius)
@@ -112,8 +113,8 @@ void Pendulum::setPendulum(int x, int y, int width, int height)
 	int left = int(anchor.x * zoom - width / 2.f);
 	int top = int(anchor.y * zoom - height / 2.f);
 
-	pendulum.x = float(x + left) / (unit.x * zoom);
-	pendulum.y = -float(y + top) / (unit.y * zoom);
+	pendulum.x = float(x + left) / (unit.x * zoom) * (pi / 2);
+	pendulum.y = -float(y + top) / (unit.y * zoom) * (pi / 2);
 
 	trail.clear();
 	trail.push_back(pendulum);
@@ -140,7 +141,7 @@ sf::Image Pendulum::renderAxes(int width, int height) const
 
 	//draw vertical axes
 	for (int y = top; y < top + height; y++) {
-		float xDiff = unit.x * zoom / 2.f;
+		float xDiff = unit.x * zoom;
 		for (float x = int(left / xDiff) * xDiff; x < left + width; x += xDiff)
 			draw(int(std::round(x)), y, sf::Color(100, 100, 100));
 
@@ -163,16 +164,16 @@ sf::Image Pendulum::renderAxes(int width, int height) const
 
 	//draw all the vector arrows
 	float yDiff = unit.y * zoom / 4.f;
-	for (float y = int(top / yDiff) * yDiff; y < top + height; y += yDiff) {
+	for (float y = int(top / yDiff - 1) * yDiff; y <= top + height + yDiff; y += yDiff) {
 
 		float xDiff = unit.x * zoom / 8.f;
-		for (float x = int(left / xDiff) * xDiff; x < left + width; x += xDiff) {
+		for (float x = int(left / xDiff - 1) * xDiff; x <= left + width + xDiff; x += xDiff) {
 
-			float xV = float(x / (unit.x * zoom) * Pendulum::pi);
-			float xSize = -y / (unit.y * zoom);
+			float xV = float(x / (unit.x * zoom) * pi / 2);
+			float xSize = -y / (unit.y * zoom) * pi / 2;
 			float ySize = float(xSize * drag / 1000.f + 9.806 * sin(xV) / length);
-			xSize *= 0.9f, ySize *= 0.9f;
 
+			xSize *= 0.9f, ySize *= 0.9f;
 			float size = sqrt(xSize * xSize + ySize * ySize);
 			float per = std::min(size / 15.f, 1.f);
 			auto col = sf::Color(char(255 * (1 - per)), char(255 * per), 0);

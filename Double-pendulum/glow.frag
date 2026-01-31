@@ -19,7 +19,7 @@ void main()
     vec4 prev = texture(previousFrame, uv / resolution);
 
     if (isPlaying) {
-        prev.rgb = max((prev.rgb - 0.002) * fade, 0.0);
+        prev.rgb = max((prev.rgb - 0.003) * fade, 0.0);
     }
 
     vec2 v = pos2 - pos1;

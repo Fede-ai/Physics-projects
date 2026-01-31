@@ -12,7 +12,8 @@ int main() {
 	sf::RenderWindow w(sf::VideoMode(sf::Vector2u(wSize)), "Pendulum", sf::State::Windowed, settings);
 	w.setView(sf::View({ wSize.x / 2.f, wSize.y / 2.f }, { wSize.x, wSize.y }));
 	w.setKeyRepeatEnabled(false);
-	w.setFramerateLimit(50);
+	const int fps = 60;
+	w.setFramerateLimit(fps);
 
 	sf::RectangleShape body;
 	body.setOrigin({ 0, 10 });
@@ -92,7 +93,7 @@ int main() {
 		}
 
 		if (pendulum.isUpdating)
-			pendulum.update();
+			pendulum.update(fps);
 
 		w.clear(sf::Color(20, 20, 20));
 
@@ -108,28 +109,28 @@ int main() {
 		}
 
 		float xPos = float(w.getSize().x - std::max(graphWidth, 0)) / 2.f;
-		float ang = float(0.5 - pendulum.pendulum.x);
+		float ang = float(Pendulum::pi / 2.0 - pendulum.pendulum.x);
 
 		body.setSize(sf::Vector2f(xPos - 50, 20));
 		body.setPosition({ xPos, w.getSize().y / 2.f });
-		body.setRotation(sf::degrees(ang * 180));
+		body.setRotation(sf::radians(ang));
 		w.draw(body);
 		
 		pivot.setPosition({ xPos, w.getSize().y / 2.f });
 		w.draw(pivot);
 
 		mass.setPosition(pivot.getPosition());
-		mass.move({ body.getSize().x * float(cos(ang * Pendulum::pi)),
-			body.getSize().x * float(sin(ang * Pendulum::pi)) });
+		mass.move({ body.getSize().x * float(cos(ang)),
+			body.getSize().x * float(sin(ang)) });
 		w.draw(mass);
 
 		float arrowLeng = float(pendulum.pendulum.y * 50);
-		sf::Vector2f offset = sf::Vector2f(4 * float(cos(ang * Pendulum::pi)), 
-			4 * float(sin(ang * Pendulum::pi)));
-		arrow[0].position = mass.getPosition() + sf::Vector2f(arrowLeng * float(cos((ang - 0.5f)
-			* Pendulum::pi)), arrowLeng * float(sin((ang - 0.5f) * Pendulum::pi)));
-		arrow[1].position = mass.getPosition() + sf::Vector2f(1.2f * arrowLeng * float(cos((ang - 0.5f) 
-			* Pendulum::pi)), 1.2f * arrowLeng * float(sin((ang - 0.5f) * Pendulum::pi)));
+		sf::Vector2f offset = sf::Vector2f(4 * float(cos(ang)), 
+			4 * float(sin(ang)));
+		arrow[0].position = mass.getPosition() + sf::Vector2f(arrowLeng * float(cos(ang - Pendulum::pi / 2.0)), 
+			arrowLeng * float(sin(ang - Pendulum::pi / 2.0)));
+		arrow[1].position = mass.getPosition() + sf::Vector2f(1.2f * arrowLeng * float(cos(ang - Pendulum::pi / 2.0)), 
+			1.2f * arrowLeng * float(sin(ang - Pendulum::pi / 2.0)));
 		arrow[2].position = arrow[0].position + (offset + offset);
 		arrow[3].position = arrow[0].position + offset;
 		arrow[4].position = mass.getPosition() + offset;
@@ -139,14 +140,17 @@ int main() {
 		arrow[8].position = arrow[1].position;
 		w.draw(arrow);
 
-		titles.setString("Ang = " + std::to_string(pendulum.pendulum.x * Pendulum::pi) + " rad\nAng vel = "
+		titles.setString("Ang = " + std::to_string(pendulum.pendulum.x) + " rad\nAng vel = "
 			+ std::to_string(pendulum.pendulum.y) + " rad / sec");
 		w.draw(titles);
 
 		std::string uStr = std::to_string(pendulum.drag / 1000.f);
 		while (uStr[uStr.size() - 1] == '0')
 			uStr.resize(uStr.size() - 1);
-		eq.setString("u = " + uStr + ", a = a(t)\na'' = -u * a' - (g / L) * sin(a)");
+		if (uStr[uStr.size() - 1] == '.')
+			uStr += '0';
+
+		eq.setString("u = " + uStr + "\na'' = -u * a' - (g / L) * sin(a)");
 		eq.setPosition({ 15, float(w.getSize().y - 75) });
 		w.draw(eq);
 

@@ -3,7 +3,7 @@
 #include <complex>
 #include <cmath>
 
-#define PI 3.141592653589793238462643383279502884L
+constexpr auto PI = 3.141592653589793L;
 
 typedef std::complex<double> Point;
 typedef struct {

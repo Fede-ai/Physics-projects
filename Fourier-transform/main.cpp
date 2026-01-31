@@ -136,8 +136,8 @@ int main()
 				if (f.magnitude < threshold || f.m == 0)
 					continue;
 
-				float radius = std::pow(f.magnitude, 0.4f) / 5.f;
-				float c = std::pow(f.magnitude / ft->orderedSpectrum_[1].magnitude, 0.6);
+				float radius = std::pow(f.magnitude, 0.5f) / 5.f - 0.04f;
+				float c = std::pow(f.magnitude / ft->orderedSpectrum_[1].magnitude, 0.4);
 				sf::Color color = sf::Color(0, 255 * c, 255 * (1 - c));
 
 				sf::CircleShape circle(radius);
