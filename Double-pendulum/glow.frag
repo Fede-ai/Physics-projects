@@ -8,7 +8,7 @@ uniform vec2 resolution;
 uniform bool isPlaying;
 
 uniform float fade;
-uniform float width;
+uniform float radius;
 uniform float strength;
 
 out vec4 fragColor;
@@ -28,7 +28,7 @@ void main()
     t = clamp(t, 0.0, 1.0);
     vec2 closestPoint = pos1 + t * v;
 
-    float d = length(uv - closestPoint) / width;
+    float d = length(uv - closestPoint) / radius;
     float glow = strength * exp(-d * d);
     vec3 pointColor = vec3(0.2, 0.7, 1.0) * glow;
 

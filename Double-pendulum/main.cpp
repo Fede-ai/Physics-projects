@@ -8,7 +8,6 @@ int main() {
 	if (!glowShader.loadFromFile("glow.frag", sf::Shader::Type::Fragment))
 		return -1;
 	glowShader.setUniform("fade", 1.f);
-	glowShader.setUniform("width", 4.f);
 	glowShader.setUniform("strength", 2.f);
 
 	Pendulum pendulum(1, 0.8, 1, 1.1);
@@ -22,32 +21,49 @@ int main() {
 	settings.antiAliasingLevel = 8;
 	sf::RenderWindow window(sf::VideoMode(sf::Vector2u(width, width * 9.f / 16.f)), "Double-pendulum", sf::State::Windowed, settings);
 	const unsigned int fps = 100;
+	bool isFullscreen = false;
 	window.setFramerateLimit(fps);
 	window.setKeyRepeatEnabled(false);
 
-	sf::RenderTexture rtA(window.getSize()), rtB(window.getSize());
+	sf::Vector2u wSize = window.getSize();
+	sf::Vector2u lastWindowSize = wSize;
+	window.setView(sf::View(sf::FloatRect({ 0, 0 }, sf::Vector2f(wSize))));
+	sf::RenderTexture rtA(wSize), rtB(wSize);
 	size_t ping = 0;
 
 	while (window.isOpen()) {
 		while (const std::optional event = window.pollEvent()) {
 			if (event->is<sf::Event::Closed>())
 				window.close();
-			else if (const auto* s = event->getIf<sf::Event::Resized>()) {
-				window.setView(sf::View(sf::FloatRect({ 0, 0 }, sf::Vector2f(s->size))));
-				auto _ = rtA.resize(s->size);
-				_ = rtB.resize(s->size);
-				rtA.clear(sf::Color::Black);
-				rtB.clear(sf::Color::Black);
-			}
 			else if (const auto* k = event->getIf<sf::Event::KeyPressed>()) {
 				if (k->code == sf::Keyboard::Key::Space)
 					isPlaying = !isPlaying;
+				else if (k->code == sf::Keyboard::Key::Enter && k->alt) {
+					if (!isFullscreen)
+						window.create(sf::VideoMode::getFullscreenModes()[0], "Double-pendulum", sf::State::Fullscreen, settings);
+					else
+						window.create(sf::VideoMode(sf::Vector2u(width, width * 9.f / 16.f)), "Double-pendulum", sf::State::Windowed, settings);
+
+					window.setFramerateLimit(fps);
+					window.setKeyRepeatEnabled(false);
+					isFullscreen = !isFullscreen;
+				}
 			}
+		}
+
+		wSize = window.getSize();
+		if (wSize != lastWindowSize) {
+			lastWindowSize = wSize;
+
+			auto _ = rtA.resize(wSize);
+			_ = rtB.resize(wSize);
+			rtA.clear(sf::Color::Black);
+			rtB.clear(sf::Color::Black);
+			window.setView(sf::View(sf::FloatRect({ 0, 0 }, sf::Vector2f(wSize))));
 		}
 
 		sf::RenderTexture& current = (ping % 2) ? rtA : rtB;
 		sf::RenderTexture& previous = (ping % 2) ? rtB : rtA;
-		sf::Vector2u wSize = window.getSize();
 
 		float totalArmLegth = std::min(wSize.x, wSize.y) / 2.f - 20.f;
 		float armLength1 = totalArmLegth * arms.first / (arms.first + arms.second);
@@ -93,6 +109,7 @@ int main() {
 		arm2.setPosition(pos1);
 		arm2.setRotation(sf::radians(3.14159 / 2 - state.theta2));
 
+		glowShader.setUniform("radius", dot2.getRadius() / 1.1f);
 		glowShader.setUniform("previousFrame", previous.getTexture());
 		glowShader.setUniform("pos1", sf::Vector2f(pos2Last.x, wSize.y - pos2Last.y));
 		glowShader.setUniform("pos2", sf::Vector2f(pos2.x, wSize.y - pos2.y));
