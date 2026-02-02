@@ -2,17 +2,89 @@
 #include <SFML/Graphics.hpp>
 #include "transform.hpp"
 
+static sf::Color getFrequencyColor(double magnitude, double maxMagnitude) {
+	// 0 ~ tip, 2 = base
+	float c = 2.f * std::pow(magnitude / maxMagnitude, 0.3);
+	if (c < 1.f)
+		return sf::Color(255 * (1 - c), 255 * c, 0);
+	else
+		return sf::Color(0, 255 * (2 - c), 255 * (c - 1));
+}
+
+static void updateRenderers(sf::RenderTexture& bgRenderer, sf::RenderTexture& spectrumRenderer, 
+	sf::Shader& bgShader, const std::vector<Point>* spectrum, sf::Vector2u size) 
+{
+	unsigned int spectrumWidth = size.x / 4;
+	sf::Vector2u bgSize = { size.x - spectrumWidth, size.y };
+	auto _ = bgRenderer.resize(bgSize);
+	bgRenderer.clear();
+	bgShader.setUniform("resolution", sf::Vector2f(bgSize));
+	sf::RectangleShape quad(sf::Vector2f{ bgSize });
+	bgRenderer.draw(quad, &bgShader);
+	bgRenderer.display();
+
+	_ = spectrumRenderer.resize({ spectrumWidth, size.y });
+	spectrumRenderer.clear(sf::Color(20, 20, 20));
+	sf::RectangleShape centerLine(sf::Vector2f(spectrumWidth / 30.f, size.y - 40));
+	centerLine.setOrigin({ centerLine.getSize().x / 2.f, 0 });
+	centerLine.setPosition({ spectrumWidth / 2.f, 20.f });
+	centerLine.setFillColor(sf::Color(100, 100, 100));
+	spectrumRenderer.draw(centerLine);
+
+	//no spectrum bars to draw
+	if (spectrum == nullptr) {
+		spectrumRenderer.display();
+		return;
+	}
+
+	double maxMagnitude = 0;
+	for (int i = 1; i < spectrum->size(); i++)
+		maxMagnitude = std::max(maxMagnitude, std::abs((*spectrum)[i]) / spectrum->size());
+	float barBase = (centerLine.getSize().y - 10) / (spectrum->size() / 2.f);
+	float maxBarHeight = (spectrumWidth - centerLine.getSize().x) / 2.2f;	
+	
+	auto barSize = [maxBarHeight, maxMagnitude] (double mag) {
+		return maxBarHeight * log(1 + mag) / log(1 + maxMagnitude);
+		};
+
+	for (int i = 1; i < spectrum->size(); i++) {
+		double magnitude = std::abs((*spectrum)[i]) / spectrum->size();
+		sf::RectangleShape bar(sf::Vector2f(barSize(magnitude), barBase));
+		bar.setFillColor(getFrequencyColor(magnitude, maxMagnitude));
+		
+		float barX = (spectrumWidth + centerLine.getSize().x) / 2.f;
+		float barY = 25.f + (i - 1) * barBase;
+		if (i > spectrum->size() / 2.f) {
+			barX -= centerLine.getSize().x;
+			barY = size.y - 25.f - (i - spectrum->size() / 2.f) * barBase;
+			bar.setRotation(sf::degrees(180.f));
+		}
+		bar.setPosition({ barX, barY });
+		spectrumRenderer.draw(bar);
+	}
+
+	spectrumRenderer.display();
+}
+
 int main()
 {
+	sf::Shader bgShader;
+	if (!bgShader.loadFromFile("bg.frag", sf::Shader::Type::Fragment))
+		return -1;
+
 	const float width = sf::VideoMode::getFullscreenModes()[0].size.x * 2 / 3.f;
 	sf::Vector2f wSize(width, width * 9.f / 16.f);
 	sf::ContextSettings settings;
 	settings.antiAliasingLevel = 8;
 
-	sf::RenderWindow w(sf::VideoMode(sf::Vector2u(wSize)), "FFT", sf::State::Windowed, settings);
-	w.setView(sf::View({ 0, 0 }, wSize));
+	sf::RenderWindow w(sf::VideoMode(sf::Vector2u(wSize)), "Fourier-transform", sf::State::Windowed, settings);
 	w.setKeyRepeatEnabled(false);
 	w.setFramerateLimit(100);
+
+	sf::RenderTexture bgRenderer;
+	sf::RenderTexture spectrumRenderer;
+	sf::Vector2u lastRenderSize = w.getSize();
+	updateRenderers(bgRenderer, spectrumRenderer, bgShader, nullptr, lastRenderSize);
 
 	sf::Vector2f lastMousePos;
 	bool isMoving = false, isRunning = false;
@@ -26,13 +98,12 @@ int main()
 
 	std::vector<sf::VertexArray> lines;
 	sf::VertexArray traced(sf::PrimitiveType::LineStrip);
-	
-	sf::Font font("font.ttf");
 
 	while (w.isOpen()) {
 		while (const std::optional event = w.pollEvent()) {
 			if (event->is<sf::Event::Closed>())
 				w.close();
+			//start a line or start moving view
 			else if (const auto* button = event->getIf<sf::Event::MouseButtonPressed>()) {
 				if (button->button == sf::Mouse::Button::Left) {
 					if (drawingFrame == size_t(-1)) {
@@ -46,6 +117,7 @@ int main()
 					lastMousePos = w.mapPixelToCoords(button->position);
 				}
 			}
+			//end a line (discard if too short) or stop moving view
 			else if (const auto* button = event->getIf<sf::Event::MouseButtonReleased>()) {
 				if (button->button == sf::Mouse::Button::Left) {
 					if (isDrawing && points[points.size() - 1].size() < 20) {
@@ -55,6 +127,7 @@ int main()
 					isDrawing = false, isMoving = false;
 				}
 			}
+			//draw line or move view
 			else if (const auto* mouse = event->getIf<sf::Event::MouseMoved>()) {
 				if (isDrawing) {
 					auto p = w.mapPixelToCoords(mouse->position);
@@ -69,8 +142,13 @@ int main()
 					lastMousePos = w.mapPixelToCoords(mouse->position);
 				}
 			}
-			else if (const auto* mouse = event->getIf<sf::Event::MouseWheelScrolled>())
-				zoom /= ((mouse->delta > 0) ? 0.85f : 1.15f);
+			//change zoom value
+			else if (const auto* mouse = event->getIf<sf::Event::MouseWheelScrolled>()) {
+				if (!lines.empty())
+					zoom /= ((mouse->delta > 0) ? 0.85f : 1.15f);
+				zoom = std::clamp(zoom, 0.3f, 5000.f);
+			}
+			//perform new fourier transform, pause/resume simulation, or reset
 			else if (const auto* key = event->getIf<sf::Event::KeyPressed>()) {
 				if (key->code == sf::Keyboard::Key::Space) {
 					if (drawingFrame == size_t(-1) && !isDrawing && !points.empty()) {
@@ -83,7 +161,10 @@ int main()
 						}
 
 						auto uniform = Transform::smoothenPoints(continuous);
+						delete ft;
 						ft = new Transform(uniform);
+						updateRenderers(bgRenderer, spectrumRenderer, bgShader, &ft->spectrum_, lastRenderSize);
+
 						for (int i = 0; i < ft->spectrum_.size(); i++)
 							std::cout << "f " << i << " -> mag: " << std::abs(ft->spectrum_[i]) / ft->spectrum_.size()
 							<< "\tphase: " << std::arg(ft->spectrum_[i]) << "\n";
@@ -91,11 +172,9 @@ int main()
 						std::cout << "raw points number: " << continuous.size() << "\n";
 						std::cout << "uniform points number: " << uniform.size() << "\n";
 
-						for (size_t i = 0; i < ft->orderedSpectrum_.size(); i++) {
-							if (ft->orderedSpectrum_[i].magnitude >= threshold)
-								numFrequencies++;
-						}
-						std::cout << "frequencies with magnitude > " << threshold << ": " << numFrequencies << "\n";
+						for (size_t i = 0; i < ft->orderedSpectrum_.size(); i++)
+							numFrequencies += (ft->orderedSpectrum_[i].magnitude > threshold);
+						std::cout << "frequencies with magnitude > " << threshold << ": " << numFrequencies - 1 << "\n";
 					}
 					else if (drawingFrame != size_t(-1))
 						isRunning = !isRunning;
@@ -111,17 +190,36 @@ int main()
 
 					delete ft;
 					ft = new Transform({});
+					updateRenderers(bgRenderer, spectrumRenderer, bgShader, nullptr, lastRenderSize);
+
+					zoom = 1.f;
+					sf::View v = w.getView();
+					v.setSize(sf::Vector2f(w.getSize()));
+					w.setView(v);
 				}
 			}
 		}
-
-		wSize = sf::Vector2f(w.getSize());
-		sf::View v = w.getView();
-		v.setSize(wSize / zoom);
-		w.setView(v);
-		w.clear(sf::Color(50, 50, 50));		
 		
-		//draw FT result
+		//handle zoom and resize
+		sf::View v = w.getView();
+		v.setSize(sf::Vector2f(w.getSize()) / zoom);
+		w.setView(v);
+		if (lastRenderSize != w.getSize()) {
+			lastRenderSize = w.getSize();
+			if (ft->spectrum_.size() > 0)
+				updateRenderers(bgRenderer, spectrumRenderer, bgShader, &ft->spectrum_, lastRenderSize);
+			else
+				updateRenderers(bgRenderer, spectrumRenderer, bgShader, nullptr, lastRenderSize);
+		}
+
+		//draw background
+		w.clear();
+		sf::Sprite bgSprite(bgRenderer.getTexture());
+		bgSprite.setPosition(w.mapPixelToCoords({ 0, 0 }));
+		bgSprite.scale(sf::Vector2f(1 / zoom, 1 / zoom));
+		w.draw(bgSprite);
+		
+		//draw FT arms
 		const float speed = 150 / 1'000.f;
 		if (drawingFrame != size_t(-1) || isRunning) {
 			if (isRunning)
@@ -133,12 +231,12 @@ int main()
 			float y = anchor.magnitude * std::sin(anchor.phase);
 
 			for (const auto& f : ft->orderedSpectrum_) {
-				if (f.magnitude < threshold || f.m == 0)
+				if (f.magnitude <= threshold || f.m == 0)
 					continue;
 
-				float radius = std::pow(f.magnitude, 0.5f) / 5.f - 0.04f;
-				float c = std::pow(f.magnitude / ft->orderedSpectrum_[1].magnitude, 0.4);
-				sf::Color color = sf::Color(0, 255 * c, 255 * (1 - c));
+				//max frequency at index 1 (after DC component)
+				sf::Color color = getFrequencyColor(f.magnitude, ft->orderedSpectrum_[1].magnitude);
+				float radius = std::pow(f.magnitude - threshold, 0.7f) / 17.5f;
 
 				sf::CircleShape circle(radius);
 				circle.setOrigin({ radius, radius });
@@ -165,33 +263,17 @@ int main()
 				traced.append(sf::Vertex(sf::Vector2f(x, y), sf::Color::Red));
 		}
 
+		//draw hand-drawn lines
 		for (auto& line : lines)
 			w.draw(line);
+		//draw already-traded path
 		w.draw(traced);
 
-		sf::RenderTexture txt(sf::Vector2u{ wSize });
-		txt.clear(sf::Color::Transparent);
-
-		float u = txt.getSize().y * 0.01f;
-		sf::RectangleShape menuBg;
-		menuBg.setSize(sf::Vector2f(txt.getSize().x, 10 * u));
-		menuBg.setFillColor(sf::Color(20, 20, 20));
-		txt.draw(menuBg);
-
-		size_t nPoints = 0;
-		for (auto& p : points)
-			nPoints += p.size();
-
-		sf::Text counter(font, "Raw points n. = " + std::to_string(nPoints) +
-			"\nFrequencies n. = " + std::to_string(numFrequencies));
-		counter.setPosition({ 1.3f * u, 0.4f * u });
-		counter.setCharacterSize(3.6f * u);
-		txt.draw(counter);
-
-		sf::Sprite sprite(txt.getTexture());
-		sprite.setScale({ 1.f / zoom, -1.f / zoom });
-		sprite.setPosition(w.mapPixelToCoords(sf::Vector2i(0, wSize.y)));
-		w.draw(sprite);
+		//draw spectrum
+		sf::Sprite spectrumSprite(spectrumRenderer.getTexture());
+		spectrumSprite.setPosition(w.mapPixelToCoords(sf::Vector2i(w.getSize().x - spectrumSprite.getTextureRect().size.x, 0)));
+		spectrumSprite.scale(sf::Vector2f(1 / zoom, 1 / zoom));
+		w.draw(spectrumSprite);
 
 		w.display();
 	}

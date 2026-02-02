@@ -2,6 +2,7 @@ set(SOURCE
 	main.cpp
 	transform.hpp
 	transform.cpp
+	bg.frag
 )
 
 add_executable(Fourier-transform ${SOURCE})
@@ -27,12 +28,12 @@ add_custom_command(TARGET Fourier-transform POST_BUILD
 
 add_custom_command(TARGET Fourier-transform POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different        	
-	"${CMAKE_CURRENT_SOURCE_DIR}/font.ttf"
-	"$<TARGET_FILE_DIR:Fourier-transform>/font.ttf"
+	"${CMAKE_CURRENT_SOURCE_DIR}/bg.frag"
+	"$<TARGET_FILE_DIR:Fourier-transform>/bg.frag"
 )
 
 add_custom_command(TARGET Fourier-transform POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different        	
-	"${CMAKE_CURRENT_SOURCE_DIR}/font.ttf"
-	"$<TARGET_FILE_DIR:Fourier-transform>/../font.ttf"
+	"${CMAKE_CURRENT_SOURCE_DIR}/bg.frag"
+	"$<TARGET_FILE_DIR:Fourier-transform>/../bg.frag"
 )

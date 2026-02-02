@@ -19,6 +19,7 @@ public:
 	static std::vector<Point> smoothenPoints(const std::vector<Point>& x);
 
 	std::vector<Point> spectrum_;
+	//first element is DC component, then sorted by magnitude descending
 	std::vector<Freq> orderedSpectrum_;
 
 private:

@@ -124,7 +124,7 @@ int main() {
 			body.getSize().x * float(sin(ang)) });
 		w.draw(mass);
 
-		float arrowLeng = float(pendulum.pendulum.y * 50);
+		float arrowLeng = float(pendulum.pendulum.y * 20);
 		sf::Vector2f offset = sf::Vector2f(4 * float(cos(ang)), 
 			4 * float(sin(ang)));
 		arrow[0].position = mass.getPosition() + sf::Vector2f(arrowLeng * float(cos(ang - Pendulum::pi / 2.0)), 
