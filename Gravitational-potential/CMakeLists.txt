@@ -1,7 +1,7 @@
 set(SOURCE
 	main.cpp
-	engine.hpp
-	engine.cpp
+	engine.hpp engine.cpp
+	gravity.hpp gravity.cpp
 )
 
 add_executable(Gravitational-potential ${SOURCE})
