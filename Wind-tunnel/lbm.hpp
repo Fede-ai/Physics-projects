@@ -40,7 +40,7 @@ private:
 	inline double feq(int i, double rho0, double u0x, double u0y) {
   	double eiu = ex[i] * u0x + ey[i] * u0y;
   	double uu = u0x * u0x + u0y * u0y;
-  	return w[i] * rho0 * (1.0 + 3.0 * eiu + 4.5 * eiu * eiu - 1.5 * uu);
+  		return w[i] * rho0 * (1.0 + 3.0 * eiu + 4.5 * eiu * eiu - 1.5 * uu);
 	}
 
 	//Zou/He velocity boundary on left side (simple)

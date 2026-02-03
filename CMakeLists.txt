@@ -14,5 +14,6 @@ add_subdirectory(Fourier-transform)
 add_subdirectory(Mandelbrot-set)
 add_subdirectory(Wind-tunnel)
 add_subdirectory(Double-pendulum)
+add_subdirectory(Gravitational-potential)
 
 set(PATH_SFML "C:/SFML-3.0.0" CACHE STRING "Path to the SFML library")

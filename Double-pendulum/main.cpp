@@ -107,7 +107,7 @@ int main() {
 		sf::RectangleShape arm2 = arm1;
 		arm2.setSize({ armLength2, arm2.getSize().y });
 		arm2.setPosition(pos1);
-		arm2.setRotation(sf::radians(3.14159 / 2 - state.theta2));
+		arm2.setRotation(sf::degrees(90) - sf::radians(state.theta2));
 
 		glowShader.setUniform("radius", dot2.getRadius() / 1.1f);
 		glowShader.setUniform("previousFrame", previous.getTexture());
