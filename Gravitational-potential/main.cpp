@@ -3,7 +3,7 @@
 
 int main() {
 	GravitySimulator sim;
-	auto potentialDist = [&](double x, double z) {
+	auto potentialDist = [&sim](double x, double z) {
 		return sim.getPotentialAtPoint(x, z);
 		};
 

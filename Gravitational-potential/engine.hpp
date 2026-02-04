@@ -30,6 +30,7 @@ public:
     void renderMasses() {};
 
 private:
+	Vec3 transformToCameraSpace(const Vec3& pos) const;
 
 	sf::RenderWindow window_;
 	Camera camera_;
