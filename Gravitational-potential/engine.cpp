@@ -1,30 +1,35 @@
 #include "engine.hpp"
+#include <cmath>
+#include <algorithm>
 #include <iostream>
 
-Engine3D::Engine3D()
+Engine3D::Engine3D(unsigned int fps)
+	:
+	fps_(fps)
 {
-	camera_.position = Vec3(-130, -130, -130);
-	camera_.fov = 60.0 * PI / 180.0;
+	camera_.position = Vec3(-310, -170, -170);
+	camera_.fov = 60 * PI / 180.0;
 	camera_.pitch = 30 * PI / 180.0;
-	camera_.yaw = 45 * PI / 180.0;
+	camera_.yaw = 60 * PI / 180.0;
+
+	settings_.antiAliasingLevel = 8;
+	f = 1.0f / tan(camera_.fov * 0.5f);
 }
 
 sf::RenderWindow& Engine3D::createWindow(sf::Vector2u size)
 {
-	sf::ContextSettings settings;
-	settings.antiAliasingLevel = 8;
-
-	window_.create(sf::VideoMode(size), "Gravitational-potential", sf::State::Windowed, settings);
-	window_.setFramerateLimit(60);
+	window_.create(sf::VideoMode(size), "Gravitational-potential", sf::State::Windowed, settings_);
+	window_.setFramerateLimit(fps_);
 	window_.setKeyRepeatEnabled(false);
 	window_.setView(sf::View(sf::FloatRect(-sf::Vector2f(size) / 2.f, sf::Vector2f(size))));
 
+	defaultWindowSize_ = size;
 	lastMousePos_ = sf::Mouse::getPosition(window_);
 
 	return window_;
 }
 
-void Engine3D::handleEvents()
+int Engine3D::handleEvents()
 {	
 	//positive x when yaw = 0
 	Vec3 right = {
@@ -41,7 +46,7 @@ void Engine3D::handleEvents()
 	// (right X down) positive z when pitch = 0 and yaw = 0
 	Vec3 forward = right.cross(down);
 
-
+	int status = 0;
     while (const std::optional event = window_.pollEvent())
     {
         if (event->is<sf::Event::Closed>())
@@ -60,28 +65,45 @@ void Engine3D::handleEvents()
 				camera_.position -= down * (0.3 * delta.y);
 			}
 		}
+		else if (const auto* k = event->getIf<sf::Event::KeyPressed>()) {
+			//toggle pause
+			if (k->code == sf::Keyboard::Key::Space)
+				status = 1;
+			else if (k->code == sf::Keyboard::Key::Enter && k->alt) {
+				if (!isFullscreen_)
+					window_.create(sf::VideoMode::getFullscreenModes()[0], "Gravitational-potential", sf::State::Fullscreen, settings_);
+				else
+					window_.create(sf::VideoMode(defaultWindowSize_), "Gravitational-potential", sf::State::Windowed, settings_);
+
+				window_.setFramerateLimit(fps_);
+				window_.setKeyRepeatEnabled(false);
+				isFullscreen_ = !isFullscreen_;
+				lastMousePos_ = sf::Mouse::getPosition(window_);
+			}
+		}
     }
 	lastMousePos_ = sf::Mouse::getPosition(window_);
+	sf::Vector2u size = window_.getSize();
+	window_.setView(sf::View(sf::FloatRect(-sf::Vector2f(size) / 2.f, sf::Vector2f(size))));
 
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W))
 		camera_.fov += 0.01;
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S))
 		camera_.fov -= 0.01;
+	f = 1.0f / tan(camera_.fov * 0.5f) * size.x / 2.f;
 
 	//std::cout << "(" << camera_.position.x << ", " << camera_.position.y << ", " << camera_.position.z << "), ";
 	//std::cout << "yaw: " << camera_.yaw * 180 / PI << ", pitch: " << camera_.pitch * 180 / PI << "\n";
+
+	return status;
 }
 
 void Engine3D::renderPotentialField(std::function<double(double, double)> dist)
 {
-	std::vector<Vec3> circlePos{ {10, -10, -50.0}, {50, -20, 50} };
-	double radius = 5.0;
 	sf::Vector2u windowSize = window_.getSize();
-	float f = 1.0f / tan(camera_.fov * 0.5f);
-
 	auto applyPerspective = [&](Vec3 p) -> sf::Vector2f {
-		float px = ((p.x * f) / p.z) * windowSize.x / 2.f;
-		float py = ((p.y * f) / p.z) * windowSize.y / 2.f;
+		float px = p.x * f / p.z;
+		float py = p.y * f / p.z;
 		return sf::Vector2f(px, py);
 		};
 
@@ -107,22 +129,40 @@ void Engine3D::renderPotentialField(std::function<double(double, double)> dist)
 		addLine(Vec3(x, 0, -s), Vec3(x, 0, s));
 	for (int z = -s; z <= s; z += step)
 		addLine(Vec3(-s, 0, z), Vec3(s, 0, z));
+}
 
-	for (const auto& pos : circlePos) {
-		auto relPos = transformToCameraSpace(pos);
+void Engine3D::renderBodies(std::vector<Body>& bodies)
+{
+	std::vector<std::pair<Body*, Vec3>> sorted;
+	sorted.reserve(bodies.size());
+	for (auto& b : bodies) {
+		auto relPos = transformToCameraSpace(b.position);
+		if (relPos.z > 0)
+			sorted.push_back({ &b, relPos });
+	}
 
-		if (relPos.z <= 0)
-			return;
+	std::sort(sorted.begin(), sorted.end(),
+		[](std::pair<Body*, Vec3> a, std::pair<Body*, Vec3> b) {
+			return a.second.z > b.second.z;
+		});
 
-		float cx = ((relPos.x * f) / relPos.z) * windowSize.x / 2.f;
-		float cy = ((relPos.y * f) / relPos.z) * windowSize.y / 2.f;
-		float screenRadius = (radius * f / relPos.z) * windowSize.y / 2.f;
+	//draw bodies with mass
+	for (const auto& b : sorted) {
+		float cx = b.second.x * f / b.second.z;
+		float cy = b.second.y * f / b.second.z;
+		float screenRadius = b.first->radius * f / b.second.z;
 
 		sf::CircleShape circle;
 		circle.setRadius(screenRadius);
 		circle.setOrigin({ screenRadius, screenRadius });
 		circle.setPosition({ cx, cy });
-		circle.setFillColor(sf::Color::Red);
+
+		//differenciate massless bodies
+		if (b.first->mass > 0)
+			circle.setFillColor(sf::Color::Red);
+		else
+			circle.setFillColor(sf::Color::Blue);
+
 		window_.draw(circle);
 	}
 }
