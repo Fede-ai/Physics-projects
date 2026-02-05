@@ -2,6 +2,7 @@ set(SOURCE
 	main.cpp
 	engine.hpp engine.cpp
 	gravity.hpp gravity.cpp
+	sphere.frag
 )
 
 add_executable(Gravitational-potential ${SOURCE})
@@ -22,5 +23,12 @@ add_custom_command(TARGET Gravitational-potential POST_BUILD
 	$<$<CONFIG:Debug>:${PATH_SFML}/bin/sfml-graphics-d-3.dll>
 	$<$<CONFIG:Release>:${PATH_SFML}/bin/sfml-window-3.dll>
 	$<$<CONFIG:Debug>:${PATH_SFML}/bin/sfml-window-d-3.dll>
+	${CMAKE_CURRENT_SOURCE_DIR}/sphere.frag
 	$<TARGET_FILE_DIR:Gravitational-potential>
+)
+
+add_custom_command(TARGET Gravitational-potential POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different        	
+	"${CMAKE_CURRENT_SOURCE_DIR}/sphere.frag"
+	"$<TARGET_FILE_DIR:Gravitational-potential>/../sphere.frag"
 )

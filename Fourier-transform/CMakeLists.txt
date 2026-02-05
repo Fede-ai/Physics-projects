@@ -23,13 +23,8 @@ add_custom_command(TARGET Fourier-transform POST_BUILD
 	$<$<CONFIG:Debug>:${PATH_SFML}/bin/sfml-graphics-d-3.dll>
 	$<$<CONFIG:Release>:${PATH_SFML}/bin/sfml-window-3.dll>
 	$<$<CONFIG:Debug>:${PATH_SFML}/bin/sfml-window-d-3.dll>
+	${CMAKE_CURRENT_SOURCE_DIR}/bg.frag
 	$<TARGET_FILE_DIR:Fourier-transform>
-)
-
-add_custom_command(TARGET Fourier-transform POST_BUILD
-	COMMAND ${CMAKE_COMMAND} -E copy_if_different        	
-	"${CMAKE_CURRENT_SOURCE_DIR}/bg.frag"
-	"$<TARGET_FILE_DIR:Fourier-transform>/bg.frag"
 )
 
 add_custom_command(TARGET Fourier-transform POST_BUILD

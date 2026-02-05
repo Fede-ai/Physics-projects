@@ -34,6 +34,8 @@ public:
 	}
 
 private:
+	void computeAccelerations(std::vector<Vec3>& accels);
+
 	std::vector<Body*> bodies_;
 
 	static constexpr double G = 50;

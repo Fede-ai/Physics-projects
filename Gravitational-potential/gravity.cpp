@@ -30,25 +30,40 @@ double GravitySimulator::getPotentialAtPoint(double x, double z) const
 
 void GravitySimulator::step(double dt)
 {
-	//softening to avoid singularities
-	constexpr double eps = 1e-6;   
+	const size_t n = bodies_.size();
+	std::vector<Vec3> accels;
 
-	for (size_t i = 0; i < bodies_.size(); ++i) {
-		Vec3 acceleration(0.0, 0.0, 0.0);
+	computeAccelerations(accels);
+	for (size_t i = 0; i < n; ++i)
+		bodies_[i]->velocity += accels[i] * (0.5 * dt);
 
-		for (size_t j = 0; j < bodies_.size(); ++j) {
-			if (i == j || bodies_[j]->mass <= 0)
+	for (auto* b : bodies_)
+		b->position += b->velocity * dt;
+
+	computeAccelerations(accels);
+	for (size_t i = 0; i < n; ++i)
+		bodies_[i]->velocity += accels[i] * (0.5 * dt);
+}
+
+void GravitySimulator::computeAccelerations(std::vector<Vec3>& accels)
+{
+	constexpr double eps2 = 1e-12;
+	const size_t n = bodies_.size();
+	accels.assign(n, Vec3{ 0.0, 0.0, 0.0 });
+
+	for (size_t i = 0; i < n; i++) {
+		for (size_t j = i + 1; j < n; j++) {
+			if (bodies_[j]->mass == 0.0 && bodies_[i]->mass == 0.0)
 				continue;
 
 			Vec3 r = bodies_[j]->position - bodies_[i]->position;
-			double dist2 = r.x * r.x + r.y * r.y + r.z * r.z + eps;
+			double dist2 = r.dot(r) + eps2;
 			double invDist = 1.0 / std::sqrt(dist2);
-			acceleration += G * bodies_[j]->mass * r * invDist * invDist * invDist;
-		}
+			double invDist3 = invDist * invDist * invDist;
 
-		//semi-implicit Euler
-		bodies_[i]->velocity += acceleration * dt;
+			Vec3 forceDir = r * (G * invDist3);
+			accels[i] += forceDir * bodies_[j]->mass;
+			accels[j] -= forceDir * bodies_[i]->mass;
+		}
 	}
-	for (auto& b : bodies_)
-		b->position += b->velocity * dt;
 }

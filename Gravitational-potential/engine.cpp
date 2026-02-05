@@ -7,6 +7,9 @@ Engine3D::Engine3D(unsigned int fps)
 	:
 	fps_(fps)
 {
+	lightDirection_ = Vec3(1, -1, 1);
+	auto _ = sphereShader_.loadFromFile("sphere.frag", sf::Shader::Type::Fragment);
+
 	camera_.position = Vec3(-310, -170, -170);
 	camera_.fov = 60 * PI / 180.0;
 	camera_.pitch = 30 * PI / 180.0;
@@ -30,7 +33,7 @@ sf::RenderWindow& Engine3D::createWindow(sf::Vector2u size)
 }
 
 int Engine3D::handleEvents()
-{	
+{
 	//positive x when yaw = 0
 	Vec3 right = {
 		cos(camera_.yaw),
@@ -52,7 +55,7 @@ int Engine3D::handleEvents()
         if (event->is<sf::Event::Closed>())
             window_.close();
 		else if (const auto* w = event->getIf<sf::Event::MouseWheelScrolled>())
-			camera_.position += forward * (10.0 * w->delta);
+			camera_.position += forward * (15.0 * w->delta);
 		else if (const auto* m = event->getIf<sf::Event::MouseMoved>()) {
 			auto delta = m->position - lastMousePos_;
 			if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Right)) {
@@ -98,7 +101,7 @@ int Engine3D::handleEvents()
 	return status;
 }
 
-void Engine3D::renderPotentialField(std::function<double(double, double)> dist)
+void Engine3D::renderPotentialField(GravitySimulator& sim)
 {
 	sf::Vector2u windowSize = window_.getSize();
 	auto applyPerspective = [&](Vec3 p) -> sf::Vector2f {
@@ -107,28 +110,40 @@ void Engine3D::renderPotentialField(std::function<double(double, double)> dist)
 		return sf::Vector2f(px, py);
 		};
 
-	auto addLine = [&](Vec3 p0, Vec3 p1) {
-
+	auto addLine = [&](Vec3 p0, Vec3 p1, sf::Color c = sf::Color::White) {
 		int steps = 1000;
 		sf::VertexArray lineArray(sf::PrimitiveType::LineStrip);
 		for (int i = 0; i <= steps; i++) {
 			double t = float(i) / steps;
 			Vec3 p = p0 * (1.0f - t) + p1 * t;
 
-			auto pc = transformToCameraSpace(p + Vec3(0, dist(p.x, p.z), 0));
+			auto pc = transformToCameraSpace(p + Vec3(0, sim.getPotentialAtPoint(p.x, p.z), 0));
 			if (pc.z <= 0)
 				continue;
-			lineArray.append({ applyPerspective(pc) });
+
+			sf::Vertex v;
+			v.position = applyPerspective(pc);
+			v.color = c;
+			lineArray.append(v);
 		}
 		window_.draw(lineArray);
 		};
 
+	//the x axis is drawn cyan
+	//the z axis is drawn yellow
+
 	//from -1000 to 1000 in x and z, step 100
 	int s = 200, step = 10;
-	for (int x = -s; x <= s; x += step)
-		addLine(Vec3(x, 0, -s), Vec3(x, 0, s));
-	for (int z = -s; z <= s; z += step)
-		addLine(Vec3(-s, 0, z), Vec3(s, 0, z));
+	for (int i = -s; i <= s; i += step) {
+		if (i == -200) {
+			addLine(Vec3(-s, 0, i), Vec3(s, 0, i), sf::Color(0, 200, 200));
+			addLine(Vec3(i, 0, -s), Vec3(i, 0, s), sf::Color(200, 200, 0));
+			continue;
+		}
+
+		addLine(Vec3(-s, 0, i), Vec3(s, 0, i));
+		addLine(Vec3(i, 0, -s), Vec3(i, 0, s));
+	}
 }
 
 void Engine3D::renderBodies(std::vector<Body>& bodies)
@@ -146,24 +161,40 @@ void Engine3D::renderBodies(std::vector<Body>& bodies)
 			return a.second.z > b.second.z;
 		});
 
+	double cosYaw = cos(camera_.yaw), sinYaw = sin(camera_.yaw);
+	double cosPitch = cos(camera_.pitch), sinPitch = sin(camera_.pitch);
+	auto ld = Vec3{
+		lightDirection_.x * cosYaw + lightDirection_.z * sinYaw,
+		lightDirection_.y,
+		lightDirection_.z * cosYaw - lightDirection_.x * sinYaw
+	};
+	ld = Vec3{
+		ld.x,
+		-(ld.y * cosPitch + ld.z * sinPitch),
+		ld.z * cosPitch - ld.y * sinPitch
+	}.normalized();
+
+	sf::Vector2f center = sf::Vector2f(window_.getSize()) / 2.f;
 	//draw bodies with mass
 	for (const auto& b : sorted) {
 		float cx = b.second.x * f / b.second.z;
 		float cy = b.second.y * f / b.second.z;
 		float screenRadius = b.first->radius * f / b.second.z;
 
-		sf::CircleShape circle;
-		circle.setRadius(screenRadius);
+		sf::CircleShape circle(screenRadius, std::max(20, int(b.first->radius * 8)));
 		circle.setOrigin({ screenRadius, screenRadius });
 		circle.setPosition({ cx, cy });
 
+		sphereShader_.setUniform("lightDir", sf::Vector3f(ld));
+		sphereShader_.setUniform("radius", screenRadius);
+		sphereShader_.setUniform("pos", sf::Vector2f(cx, -cy) + center);
+		
 		//differenciate massless bodies
 		if (b.first->mass > 0)
-			circle.setFillColor(sf::Color::Red);
+			sphereShader_.setUniform("baseColor", sf::Glsl::Vec3(1.f, 0.f, 0.f));
 		else
-			circle.setFillColor(sf::Color::Blue);
-
-		window_.draw(circle);
+			sphereShader_.setUniform("baseColor", sf::Glsl::Vec3(0.f, 0.f, 1.f));
+		window_.draw(circle, &sphereShader_);
 	}
 }
 

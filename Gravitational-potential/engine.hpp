@@ -9,7 +9,7 @@ public:
     sf::RenderWindow& createWindow(sf::Vector2u size);
     
 	int handleEvents();
-	void renderPotentialField(std::function<double(double, double)> dist);
+	void renderPotentialField(GravitySimulator& sim);
 	void renderBodies(std::vector<Body>& bodies);
 
 private:
@@ -32,6 +32,9 @@ private:
 
 	sf::RenderWindow window_;
 	Camera camera_;
+
+	Vec3 lightDirection_;
+	sf::Shader sphereShader_;
 
 	sf::Vector2i lastMousePos_;
 	bool isFullscreen_ = false;
