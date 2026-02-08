@@ -3,17 +3,19 @@
 #include <algorithm>
 #include <iostream>
 
-Engine3D::Engine3D(unsigned int fps)
+Engine3D::Engine3D(unsigned int fps, unsigned int fieldSideSize, unsigned int fieldLineNum)
 	:
-	fps_(fps)
+	fps_(fps),
+	fieldSideSize_(fieldSideSize),
+	fieldLineNum_(fieldLineNum)
 {
 	lightDirection_ = Vec3(1, -1, 1);
 	auto _ = sphereShader_.loadFromFile("sphere.frag", sf::Shader::Type::Fragment);
 
-	camera_.position = Vec3(-310, -170, -170);
+	camera_.position = Vec3(-300, -150, -300);
 	camera_.fov = 60 * PI / 180.0;
-	camera_.pitch = 30 * PI / 180.0;
-	camera_.yaw = 60 * PI / 180.0;
+	camera_.pitch = 25 * PI / 180.0;
+	camera_.yaw = 45 * PI / 180.0;
 
 	settings_.antiAliasingLevel = 8;
 	f = 1.0f / tan(camera_.fov * 0.5f);
@@ -59,8 +61,8 @@ int Engine3D::handleEvents()
 		else if (const auto* m = event->getIf<sf::Event::MouseMoved>()) {
 			auto delta = m->position - lastMousePos_;
 			if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Right)) {
-				camera_.yaw -= 0.0015 * delta.x;
-				camera_.pitch -= 0.0015 * delta.y;
+				camera_.yaw -= 0.001 * delta.x;
+				camera_.pitch -= 0.001 * delta.y;
 				camera_.pitch = std::clamp(camera_.pitch, -PI / 2 + 0.01, PI / 2 - 0.01);
 			}
 			else if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left)) {
@@ -104,51 +106,57 @@ int Engine3D::handleEvents()
 void Engine3D::renderPotentialField(GravitySimulator& sim)
 {
 	sf::Vector2u windowSize = window_.getSize();
-	auto applyPerspective = [&](Vec3 p) -> sf::Vector2f {
-		float px = p.x * f / p.z;
-		float py = p.y * f / p.z;
-		return sf::Vector2f(px, py);
-		};
-
-	auto addLine = [&](Vec3 p0, Vec3 p1, sf::Color c = sf::Color::White) {
+	auto addLine = [&](Vec3 p0, Vec3 p1) {
 		int steps = 1000;
 		sf::VertexArray lineArray(sf::PrimitiveType::LineStrip);
 		for (int i = 0; i <= steps; i++) {
 			double t = float(i) / steps;
 			Vec3 p = p0 * (1.0f - t) + p1 * t;
 
-			auto pc = transformToCameraSpace(p + Vec3(0, sim.getPotentialAtPoint(p.x, p.z), 0));
-			if (pc.z <= 0)
+			p.y -= sim.getPotentialAtPoint(p.x, p.z);
+			auto rel = transformToCameraSpace(p);
+			if (rel.z <= 0)
 				continue;
 
 			sf::Vertex v;
-			v.position = applyPerspective(pc);
-			v.color = c;
+			v.position = sf::Vector2f(rel.x * f / rel.z, rel.y* f / rel.z);
+
+			if (p0.x == p0.z) {
+				if (p0.x == p1.x)
+					v.color = sf::Color(0, 255, 255);
+				else
+					v.color = sf::Color(255, 0, 255);
+			}
+			else {
+				double grad = 0;
+				if (p0.x == p1.x)
+					grad = sim.getGradientAtPoint(p.x, p.z).z;
+				else
+					grad = sim.getGradientAtPoint(p.x, p.z).x;
+
+				float g = std::clamp(grad / 4, -0.5, 0.5) + 0.5;
+				v.color = sf::Color(255 * (1 - g), 255 * g, 0);
+			}
+
 			lineArray.append(v);
 		}
 		window_.draw(lineArray);
 		};
 
 	//the x axis is drawn cyan
-	//the z axis is drawn yellow
+	//the z axis is drawn purple
+	double h = fieldSideSize_ / 2.0;
+	for (int i = fieldLineNum_ - 1; i >= 0; i--) {
+		double d = i * fieldSideSize_ / double(fieldLineNum_ - 1);
 
-	//from -1000 to 1000 in x and z, step 100
-	int s = 200, step = 10;
-	for (int i = -s; i <= s; i += step) {
-		if (i == -200) {
-			addLine(Vec3(-s, 0, i), Vec3(s, 0, i), sf::Color(0, 200, 200));
-			addLine(Vec3(i, 0, -s), Vec3(i, 0, s), sf::Color(200, 200, 0));
-			continue;
-		}
-
-		addLine(Vec3(-s, 0, i), Vec3(s, 0, i));
-		addLine(Vec3(i, 0, -s), Vec3(i, 0, s));
+		addLine(Vec3(-h, 0, -h + d), Vec3(h, 0, -h + d));
+		addLine(Vec3(-h + d, 0, -h), Vec3(-h + d, 0, h));
 	}
 }
 
-void Engine3D::renderBodies(std::vector<Body>& bodies)
+void Engine3D::renderBodies(const std::vector<Body>& bodies)
 {
-	std::vector<std::pair<Body*, Vec3>> sorted;
+	std::vector<std::pair<const Body*, Vec3>> sorted;
 	sorted.reserve(bodies.size());
 	for (auto& b : bodies) {
 		auto relPos = transformToCameraSpace(b.position);
@@ -157,10 +165,11 @@ void Engine3D::renderBodies(std::vector<Body>& bodies)
 	}
 
 	std::sort(sorted.begin(), sorted.end(),
-		[](std::pair<Body*, Vec3> a, std::pair<Body*, Vec3> b) {
+		[](std::pair<const Body*, Vec3> a, std::pair<const Body*, Vec3> b) {
 			return a.second.z > b.second.z;
 		});
 
+	//rotate light direction vector into inverted camera space
 	double cosYaw = cos(camera_.yaw), sinYaw = sin(camera_.yaw);
 	double cosPitch = cos(camera_.pitch), sinPitch = sin(camera_.pitch);
 	auto ld = Vec3{
@@ -181,7 +190,7 @@ void Engine3D::renderBodies(std::vector<Body>& bodies)
 		float cy = b.second.y * f / b.second.z;
 		float screenRadius = b.first->radius * f / b.second.z;
 
-		sf::CircleShape circle(screenRadius, std::max(20, int(b.first->radius * 8)));
+		sf::CircleShape circle(screenRadius, 30 + int(b.first->radius * 5));
 		circle.setOrigin({ screenRadius, screenRadius });
 		circle.setPosition({ cx, cy });
 
@@ -193,8 +202,28 @@ void Engine3D::renderBodies(std::vector<Body>& bodies)
 		if (b.first->mass > 0)
 			sphereShader_.setUniform("baseColor", sf::Glsl::Vec3(1.f, 0.f, 0.f));
 		else
-			sphereShader_.setUniform("baseColor", sf::Glsl::Vec3(0.f, 0.f, 1.f));
+			sphereShader_.setUniform("baseColor", sf::Glsl::Vec3(0.f, 1.f, 0.f));
 		window_.draw(circle, &sphereShader_);
+	}
+}
+
+void Engine3D::renderPoints(const std::vector<Vec3>& points)
+{
+	for (const auto& p : points) {
+		auto rel = transformToCameraSpace(p);
+		if (rel.z <= 0)
+			continue;
+
+		float cx = rel.x * f / rel.z;
+		float cy = rel.y * f / rel.z;
+		float screenRadius = 1 * f / rel.z;
+
+		sf::CircleShape circle(screenRadius);
+		circle.setOrigin({ screenRadius, screenRadius });
+		circle.setPosition({ cx, cy });
+		circle.setFillColor(sf::Color(0, 0, 255));
+
+		window_.draw(circle);
 	}
 }
 

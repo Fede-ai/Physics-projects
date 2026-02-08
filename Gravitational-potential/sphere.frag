@@ -10,6 +10,7 @@ void main()
     vec2 p = (gl_FragCoord.xy - pos) / radius;
 
     float r2 = dot(p, p);
+    if (r2 > 1.0) discard;
     float z = sqrt(1.0 - r2);
     vec3 normal = normalize(vec3(p.x, p.y, z));
     
@@ -18,5 +19,6 @@ void main()
     float diff = max(dot(normal, l), 0.05);
     
     vec3 color = baseColor * diff;
+    color = pow(color, vec3(1.0 / 2.2));
     gl_FragColor = vec4(color, 1);
 }

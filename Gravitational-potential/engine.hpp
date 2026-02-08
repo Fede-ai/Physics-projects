@@ -5,12 +5,13 @@
 
 class Engine3D {
 public:
-	Engine3D(unsigned int fps);
+	Engine3D(unsigned int fps, unsigned int fieldSideSize, unsigned int fieldLineNum);
     sf::RenderWindow& createWindow(sf::Vector2u size);
     
 	int handleEvents();
 	void renderPotentialField(GravitySimulator& sim);
-	void renderBodies(std::vector<Body>& bodies);
+	void renderBodies(const std::vector<Body>& bodies);
+	void renderPoints(const std::vector<Vec3>& points);
 
 private:
 	// by default the camera is looking in the positive z direction
@@ -25,7 +26,7 @@ private:
 		//positive pitch = looking down
 		double pitch = 0.0;
 	    //in radiants
-	    double fov = 0.0;   
+	    double fov = 0.0;
 	};
 
 	Vec3 transformToCameraSpace(const Vec3& pos) const;
@@ -43,4 +44,7 @@ private:
 	sf::ContextSettings settings_;
 
 	double f = 0;
+	//field centered at (0, 0)
+	const int fieldSideSize_;
+	const int fieldLineNum_;
 };
