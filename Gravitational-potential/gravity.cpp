@@ -62,21 +62,35 @@ Gradient GravitySimulator::getGradientAtPoint(double x, double z) const
 
 Hessian GravitySimulator::getHessianAtPoint(double x, double z) const
 {
-    constexpr double h = 1e-4;
+    Hessian h;
+	for (const auto& b : bodies_) {
+		//skip massless bodies
+		if (b->mass <= 0.0)
+			continue;
 
-    auto g0 = getGradientAtPoint(x, z);
-    auto gx1 = getGradientAtPoint(x + h, z);
-    auto gx2 = getGradientAtPoint(x - h, z);
-    auto gz1 = getGradientAtPoint(x, z + h);
-    auto gz2 = getGradientAtPoint(x, z - h);
+		double dx = x - b->position.x;
+		double dz = z - b->position.z;
+		double r2 = dx * dx + dz * dz;
+		double r = std::sqrt(r2);
 
-    Hessian H;
-    H.xx = (gx1.x - gx2.x) / (2.0 * h);
-    H.xz = (gz1.x - gz2.x) / (2.0 * h);
-    H.zx = (gx1.z - gx2.z) / (2.0 * h);
-    H.zz = (gz1.z - gz2.z) / (2.0 * h);
+		//not a shortcut, actual formula
+		if (r < b->radius) {
+			double invr3 = 1.0 / (b->radius * b->radius * b->radius);
+			h.xx += G * b->mass * invr3;
+			h.xz += 0;
+			h.zx += 0;
+			h.zz += G * b->mass * invr3;
+		}
+		else {
+			double invr5 = 1.0 / (r2 * r2 * r);
+			h.xx += G * b->mass * (r2 - 3 * dx * dx) * invr5;
+			h.xz += -G * b->mass * 3 * dx * dz * invr5;
+			h.zx += -G * b->mass * 3 * dx * dz * invr5;
+			h.zz += G * b->mass * (r2 - 3 * dz * dz) * invr5;
+		}
+	}
 
-    return H;
+    return h;
 }
 
 void GravitySimulator::step(double dt)
@@ -102,7 +116,7 @@ void GravitySimulator::calculateStabilityPoints(std::vector<Vec3>& points) const
 
     const double d = fieldSideSize_ / double(candidatesPerSide_);
     constexpr int maxNewtonIter = 50;
-    constexpr double gradThreshold = 1e-8;
+    constexpr double gradThreshold = 0.001;
     constexpr double stepDamping = 0.5;
 
 	//check if the sign doesnt agree
@@ -110,16 +124,24 @@ void GravitySimulator::calculateStabilityPoints(std::vector<Vec3>& points) const
         return (a <= 0.0 && b >= 0.0) || (a >= 0.0 && b <= 0.0);
         };
 
-    std::vector<Vec3> candidates;
-    for (int i = 0; i < candidatesPerSide_; ++i) {
-        for (int j = 0; j < candidatesPerSide_; ++j) {
-            double x0 = -fieldSideSize_ / 2.f + i * d;
-            double z0 = -fieldSideSize_ / 2.f + j * d;
+	//accessed with [x * (candidatesPerSide_ + 1) + z]
+	std::vector<Gradient> samples;
+	samples.reserve((candidatesPerSide_ + 1) * (candidatesPerSide_ + 1));
+	for (int i = 0; i < candidatesPerSide_ + 1; i++) {
+		for (int j = 0; j < candidatesPerSide_ + 1; j++) {
+			double x0 = -fieldSideSize_ / 2.f + i * d;
+			double z0 = -fieldSideSize_ / 2.f + j * d;
+			samples.push_back(getGradientAtPoint(x0, z0));
+		}
+	}
 
-            auto g00 = getGradientAtPoint(x0, z0);
-            auto g10 = getGradientAtPoint(x0 + d, z0);
-            auto g01 = getGradientAtPoint(x0, z0 + d);
-            auto g11 = getGradientAtPoint(x0 + d, z0 + d);
+    std::vector<Vec3> candidates;
+    for (int i = 0; i < candidatesPerSide_; i++) {
+        for (int j = 0; j < candidatesPerSide_; j++) {
+            auto g00 = samples[i * (candidatesPerSide_ + 1) + j];
+			auto g10 = samples[(i + 1) * (candidatesPerSide_ + 1) + j];
+			auto g01 = samples[i * (candidatesPerSide_ + 1) + j + 1];
+			auto g11 = samples[(i + 1) * (candidatesPerSide_ + 1) + j + 1];
 
             bool xZero = sc(g00.x, g10.x) || sc(g00.x, g01.x) || sc(g00.x, g11.x);
             bool zZero = sc(g00.z, g10.z) || sc(g00.z, g01.z) || sc(g00.z, g11.z);
@@ -127,8 +149,8 @@ void GravitySimulator::calculateStabilityPoints(std::vector<Vec3>& points) const
             if (!xZero || !zZero)
                 continue;
 
-            double x = x0 + 0.5 * d;
-            double z = z0 + 0.5 * d;
+            double x = -fieldSideSize_ / 2.f + (i + 0.5) * d;
+            double z = -fieldSideSize_ / 2.f + (j + 0.5) * d;
 
             for (int iter = 0; iter < maxNewtonIter; ++iter) {
                 auto g = getGradientAtPoint(x, z);

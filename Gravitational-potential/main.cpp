@@ -22,35 +22,59 @@ int main() {
 	const float width = sf::VideoMode::getFullscreenModes()[0].size.x * 2 / 3.f;
 	auto& window = engine.createWindow(sf::Vector2u(width, width * 9.f / 16.f));
 
+	using namespace std::chrono;
+	size_t totTime = 0;
+	size_t fieldTime = 0;
+	size_t stabTime = 0;
+	size_t idleTime = 0;
+
 	size_t frame = 0;
 	while (window.isOpen()) {
+		auto t0 = system_clock::now();
 		int status = engine.handleEvents();
 		if (status == 1)
 			isRunning = !isRunning;
 
+		//fast for small N
 		if (isRunning)
 			sim.step(1.0 / fps);
 
 		window.clear(sf::Color(10, 10, 10));
 		
-		//taking a lot of time
+		auto t = system_clock::now();
 		engine.renderPotentialField(sim);
+		fieldTime += duration_cast<microseconds>(system_clock::now() - t).count();
 
+		//extremely fast
 		engine.renderBodies(bodies);
 
-		//taking even more time
+		t = system_clock::now();
 		if (isRunning)
 			sim.calculateStabilityPoints(stabilityPoints);
+		stabTime += duration_cast<microseconds>(system_clock::now() - t).count();
 
+		//extremely fast
 		engine.renderPoints(stabilityPoints);
 
+		//actual displaying is fast, also handles idling
+		t = system_clock::now();
 		window.display();
+		idleTime += duration_cast<microseconds>(system_clock::now() - t).count();
+		totTime += duration_cast<microseconds>(system_clock::now() - t0).count();
 
-		if (frame++ % (fps / 2) == 0) {
-			Vec3 momentum(0, 0, 0);
-			for (const auto& b : bodies)
-				momentum += b.mass * b.velocity;
-			std::cout << "Momentum: <" << momentum.x << ", " << momentum.y << ", " << momentum.z << ">\n";
+		if (++frame % (2 * fps) == 0) {
+			std::string actualFps = std::format("{:.2f}", 2 * fps * 1'000'000.f / totTime);
+			std::string fieldPer = std::format("{:.2f}", 100 * float(fieldTime) / totTime);
+			std::string stabPer = std::format("{:.2f}", 100 * float(stabTime) / totTime);
+			std::string idlePer = std::format("{:.2f}", 100 * float(idleTime) / totTime);
+			totTime = 0, fieldTime = 0, stabTime = 0, idleTime = 0;
+			std::cout << "fps: " << actualFps << " - field: " << fieldPer << 
+				"%, stability: " << stabPer << "%, idle: " << idlePer << "%\n";
+
+			//Vec3 momentum(0, 0, 0);
+			//for (const auto& b : bodies)
+			//	momentum += b.mass * b.velocity;
+			//std::cout << "momentum: <" << momentum.x << ", " << momentum.y << ", " << momentum.z << ">\n";
 		}
 	}
 
